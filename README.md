@@ -2,128 +2,102 @@ pako
 ==========================================
 
 [![CI](https://github.com/nodeca/pako/workflows/CI/badge.svg)](https://github.com/nodeca/pako/actions)
-[![NPM version](https://img.shields.io/npm/v/pako.svg)](https://www.npmjs.org/package/pako)
 
-> Very fast zlib-compatible compression for JavaScript.
+> Very fast zlib-compatible compression for Rust.
 
 ## Why pako is cool
 
-- __Binary-equivalent output.__ Pako can produce the same deflate/gzip bytes as
+- __Binary-equivalent output.__ Pako produces the same deflate/gzip bytes as
   original [zlib](http://www.zlib.net/) (1.3.2) and Node.js' patched zlib.
-- __Tiny browser bundles.__ Full minified bundle is under 15K gzipped.
-  Deflate-only and inflate-only builds are smaller.
-- __Very fast.__ Performance is comparable with native zlib in modern JavaScript
-  engines (see benchmarks).
-
-
-## Benchmarks
-
-node v24, 1 MB input sample:
-
-```
-deflate-pako x 14.27 ops/sec ±3.41% (37 runs sampled)
-deflate-pako-zlib-hash x 10.60 ops/sec ±0.50% (29 runs sampled)
-deflate-zlib x 30.30 ops/sec ±0.61% (51 runs sampled)
-gzip-pako x 13.48 ops/sec ±0.50% (36 runs sampled)
-inflate-pako x 138 ops/sec ±1.26% (75 runs sampled)
-inflate-zlib x 397 ops/sec ±1.37% (81 runs sampled)
-ungzip-pako x 125 ops/sec ±1.46% (73 runs sampled)
-```
+- __No dependencies.__ Deflate, inflate, the Huffman tree builder and both
+  checksums are implemented here rather than bound to a C library.
 
 
 ## Install
 
+```toml
+[dependencies]
+pako = "3.0"
 ```
-npm install pako
-```
-
-> [!NOTE]
-> For a quick look at `dist/` folder contents, see
-> <https://unpkg.com/pako@latest/>.
 
 
 Examples / API
 --------------
 
-Full docs - http://nodeca.github.io/pako/
-
-```javascript
-import { Deflate, Inflate, deflate, inflate } from 'pako';
+```rust
+use pako::{deflate, inflate, DeflateOptions, InflateOptions};
 
 // Deflate
-//
-const input = new Uint8Array();
-//... fill input data here
-const output = deflate(input);
+let input: &[u8] = b"...";
+let output = deflate(input, DeflateOptions::new())?;
 
-// Inflate (simple wrapper can throw exception on broken stream)
-//
-const compressed = new Uint8Array();
-//... fill data to uncompress here
-try {
-  const result = inflate(compressed);
-  // ... continue processing
-} catch (err) {
-  console.log(err);
-}
-
-//
-// Alternate interface for chunking & without exceptions
-//
-
-const deflator = new Deflate();
-
-deflator.push(chunk1, false);
-deflator.push(chunk2); // second param is false by default.
-...
-deflator.push(chunk_last, true); // `true` says this chunk is last
-
-if (deflator.err) {
-  console.log(deflator.msg);
-}
-
-const output = deflator.result;
-
-
-const inflator = new Inflate();
-
-inflator.push(chunk1);
-inflator.push(chunk2);
-...
-inflator.push(chunk_last); // no second param because end is auto-detected
-
-if (inflator.err) {
-  console.log(inflator.msg);
-}
-
-const output = inflator.result;
+// Inflate (the simple wrapper returns Err on a broken stream)
+let restored = inflate(&output, InflateOptions::new())?;
 ```
 
-For CommonJS:
+```rust
+use pako::{Deflate, DeflateOptions, Inflate, InflateOptions, Z_FINISH, Z_NO_FLUSH};
 
-```javascript
-const { deflate, inflate } = require('pako');
+//
+// Alternate interface for chunking, reporting errors in a field
+//
+
+let mut deflator = Deflate::new(DeflateOptions::new())?;
+
+deflator.push(chunk1, Z_NO_FLUSH);
+deflator.push(chunk2, Z_NO_FLUSH);
+// ...
+deflator.push(chunk_last, Z_FINISH); // Z_FINISH says this chunk is last
+
+if deflator.err != 0 {
+    println!("{}", deflator.msg);
+}
+
+let output = deflator.result;
+
+
+let mut inflator = Inflate::new(InflateOptions::new())?;
+
+inflator.push(chunk1, Z_NO_FLUSH);
+inflator.push(chunk2, Z_NO_FLUSH);
+// ...
+inflator.push(chunk_last, Z_FINISH);
+
+if inflator.err != 0 {
+    println!("{}", inflator.msg);
+}
+
+let output = inflator.result;
 ```
 
-If you need the whole API as an object, use namespace import:
+Options are built by chaining, so only the ones you care about are named:
 
-```javascript
-import * as pako from 'pako';
+```rust
+use pako::{deflate, deflate_raw, gzip, DeflateOptions, Z_RLE};
+
+let a = deflate(input, DeflateOptions::new().level(9))?;
+let b = gzip(input, DeflateOptions::new().strategy(Z_RLE))?;
+let c = deflate_raw(input, DeflateOptions::new().dictionary(dict))?;
 ```
 
-Sometimes you may wish to work with strings — for example, to send
-stringified objects to a server. Pako's deflate detects the input data type and
-automatically recodes strings to utf-8 prior to compression. High-level inflate
-helpers can decode utf-8 output back to JavaScript strings with `toText: true`.
+By default pako uses the ANZAC++ hash, which matches recent (chromium) Node.js
+output. Set `legacy_hash(true)` for the classic zlib hash, which matches
+canonical zlib byte for byte.
 
-```javascript
-import { deflate, inflate } from 'pako';
+```rust
+use pako::{deflate, DeflateOptions};
 
-const test = { my: 'super', puper: [456, 567], awesome: 'pako' };
+let canonical = deflate(input, DeflateOptions::new().legacy_hash(true))?;
+```
 
-const compressed = deflate(JSON.stringify(test));
+To work with text, compress its UTF-8 bytes and decode the result back:
 
-const restored = JSON.parse(inflate(compressed, { toText: true }));
+```rust
+use pako::{deflate, inflate, DeflateOptions, InflateOptions};
+
+let text = "pako is super awesome";
+let compressed = deflate(text.as_bytes(), DeflateOptions::new())?;
+let restored = String::from_utf8(inflate(&compressed, InflateOptions::new())?)?;
 ```
 
 
@@ -135,8 +109,7 @@ Pako does not contain some specific zlib functions:
   `deflatePending`, `deflatePrime`, `deflateTune`.
 - __inflate__ - methods `inflateCopy`, `inflateMark`,
   `inflatePrime`, `inflateGetDictionary`, `inflateSync`, `inflateSyncPoint`, `inflateUndermine`.
-- High level inflate/deflate wrappers (classes) may not support some flush
-  modes.
+- High level inflate/deflate wrappers may not support some flush modes.
 
 
 ## Authors

@@ -1,5 +1,2 @@
-doc/
-node_modules/
-coverage/
+target/
 *.log
-dist/

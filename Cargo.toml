@@ -1,0 +1,19 @@
+[package]
+name = "pako"
+version = "3.0.3"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT"
+description = "zlib (deflate/inflate) in pure Rust, a port of the pako JavaScript library"
+repository = "https://github.com/nodeca/pako"
+keywords = ["zlib", "deflate", "inflate", "gzip", "compression"]
+categories = ["compression"]
+
+# No dependencies on purpose. The whole point of this crate is the algorithm
+# itself: deflate, inflate, the Huffman tree builder and the two checksums are
+# implemented here rather than delegated to a C library or to flate2.
+[dependencies]
+
+[lib]
+name = "pako"
+path = "src/lib.rs"

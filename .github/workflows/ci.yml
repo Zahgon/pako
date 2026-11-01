@@ -17,13 +17,14 @@ jobs:
     steps:
     - uses: actions/checkout@v5
 
-    - name: Use Node.js LTS
-      uses: actions/setup-node@v6
-      with:
-        node-version: lts/*
-        cache: npm
+    - name: Install the Rust toolchain
+      run: rustup toolchain install stable --profile minimal --component clippy rustfmt
 
-    - run: npm ci
+    - name: Format
+      run: cargo fmt --check
+
+    - name: Lint
+      run: cargo clippy --all-targets -- -D warnings
 
     - name: Test
-      run: npm test
+      run: cargo test --locked

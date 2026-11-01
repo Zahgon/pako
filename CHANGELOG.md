@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Rewritten in Rust. The crate produces the same deflate/gzip bytes as the
+  JavaScript implementation and as canonical zlib at every level, strategy,
+  window size and memory level, verified against the recorded zlib snapshots
+  in `test/zlib/zlib_snapshots`.
+- `Deflate::push` and `Inflate::push` take a flush mode rather than a boolean;
+  pass `Z_FINISH` for the last chunk.
+- Options are built by chaining (`DeflateOptions::new().level(9)`) instead of
+  an object literal, and the constructors return `Result` where the JavaScript
+  ones threw.
+- `onData` / `onEnd` overrides are replaced by the public `chunks` and
+  `result` fields; `onStart`'s documented use for reading a gzip header is now
+  `Inflate::capture_header`.
+
+### Removed
+
+- The npm package, the browser bundles and the TypeScript type definitions.
+
 ## 3.0.3 - 2026-10-26
 
 ### Added
